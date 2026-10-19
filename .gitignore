@@ -1,0 +1,17 @@
+# build output
+/sommelier
+/sommelier.exe
+/dist/
+/bin/
+
+# local state — never commit a config or a catalog
+.env
+*.toml.local
+index.jsonl
+index.jsonl.cursor
+tags.jsonl
+
+# editor / OS noise
+.DS_Store
+.idea/
+.vscode/

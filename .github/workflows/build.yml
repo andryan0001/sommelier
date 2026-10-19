@@ -1,0 +1,97 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: vet + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Format check (advisory)
+        continue-on-error: true
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::warning::gofmt would reformat:"
+            echo "$unformatted"
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  build:
+    name: ${{ matrix.name }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-amd64,   goos: linux,   goarch: amd64, ext: "" }
+          - { name: linux-arm64,   goos: linux,   goarch: arm64, ext: "" }
+          - { name: linux-armv7,   goos: linux,   goarch: arm,   goarm: "7", ext: "" }
+          - { name: darwin-amd64,  goos: darwin,  goarch: amd64, ext: "" }
+          - { name: darwin-arm64,  goos: darwin,  goarch: arm64, ext: "" }
+          - { name: windows-amd64, goos: windows, goarch: amd64, ext: ".exe" }
+          - { name: windows-arm64, goos: windows, goarch: arm64, ext: ".exe" }
+          - { name: freebsd-amd64, goos: freebsd, goarch: amd64, ext: "" }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          CGO_ENABLED: "0"
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then version="0.0.0-${GITHUB_SHA::7}"; fi
+          mkdir -p out
+          go build -trimpath -buildvcs=false \
+            -ldflags "-s -w -X github.com/andryan0001/sommelier/internal/cli.Version=${version}" \
+            -o "out/sommelier-${{ matrix.name }}${{ matrix.ext }}" .
+
+      - name: Smoke test
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: |
+          ./out/sommelier-${{ matrix.name }} --help > /dev/null
+          ./out/sommelier-${{ matrix.name }} version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sommelier-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
