@@ -88,7 +88,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 	// A fresh install is guided rather than failing at the first API call.
 	if !config.Exists() && !hasFlag(args, "--no-setup") {
-		fmt.Fprintln(stdout, "No configuration yet — running first-time setup.\n")
+		fmt.Fprintln(stdout, "No configuration yet — running first-time setup.")
+		fmt.Fprintln(stdout)
 		if code := runSetup(nil, stdout, stderr); code != 0 {
 			return code
 		}
@@ -535,7 +536,8 @@ func runSetup(args []string, stdout, stderr io.Writer) int {
 
 	if !*nonInteractive {
 		fmt.Fprintln(stdout, "sommelier setup")
-		fmt.Fprintln(stdout, "Press enter to accept the default in brackets.\n")
+		fmt.Fprintln(stdout, "Press enter to accept the default in brackets.")
+		fmt.Fprintln(stdout)
 
 		fmt.Fprintf(stdout, "Provider (%s) [openrouter]: ", strings.Join(llm.ProviderNames, ", "))
 		provider = ask(reader)
